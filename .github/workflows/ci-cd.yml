@@ -197,9 +197,10 @@ jobs:
           LOWER_IMAGE_NAME: ${{ steps.imagevars.outputs.lower_image_name }}
         run: |
           NEW_IMAGE="${REGISTRY}/${LOWER_IMAGE_NAME}:${IMAGE_TAG}"
-          sed -i "s|image: ${REGISTRY}/.*|image: ${NEW_IMAGE}|g" kubernetes/deployment.yaml
+          sed -i "s|image: ${REGISTRY}/.*|image: ${NEW_IMAGE}|g" nodejs/kubernetes/deployment.yaml
           echo "Updated deployment to use image: ${NEW_IMAGE}"
-          grep -A 1 "image:" kubernetes/deployment.yaml
+          grep -A 1 "image:" nodejs/kubernetes/deployment.yaml
+
 
       - name: Commit and push changes
         run: |
