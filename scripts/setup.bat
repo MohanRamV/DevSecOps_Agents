@@ -8,7 +8,7 @@ echo Setting up Python environment...
 cd DevSecOps_Agents
 python -m venv venv
 call venv\Scripts\activate
-pip install -r requirements.txt
+python install_dependencies.py
 echo Python environment setup complete!
 echo.
 
@@ -28,8 +28,7 @@ echo Setup complete!
 echo ========================================
 echo.
 echo Next steps:
-echo 1. Copy DevSecOps_Agents\env_example.txt to DevSecOps_Agents\.env
-echo 2. Configure your environment variables in .env
-echo 3. Test the system: cd DevSecOps_Agents && python test_system.py
-echo 4. Start monitoring: cd DevSecOps_Agents && python main.py
+echo 1. Run credential setup: cd DevSecOps_Agents && python setup_credentials.py
+echo 2. Test the system: cd DevSecOps_Agents && python test_system.py
+echo 3. Start monitoring: cd DevSecOps_Agents && python main.py
 echo.

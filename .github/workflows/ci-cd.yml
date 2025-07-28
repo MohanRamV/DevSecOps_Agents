@@ -24,6 +24,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: nodejs/package-lock.json
       
       - name: Install dependencies
         run: npm ci
@@ -46,6 +47,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: nodejs/package-lock.json
       
       - name: Install dependencies
         run: npm ci
@@ -69,6 +71,7 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: nodejs/package-lock.json
       
       - name: Install dependencies
         run: npm ci
@@ -80,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: dist/
+          path: nodejs/dist/
 
   docker:
     name: Docker Build and Push
@@ -137,7 +140,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          image-ref: ${{ steps.meta.outputs.tags }}
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
