@@ -1,16 +1,21 @@
-# General
-*.log
-*.db
-
-# Node
+# dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 package-lock.json
 
-# Build
+# build outputs
 dist/
 build/
+
+# local database
+*.db
+
+# logs
+*.log
+
+# dotenv files
 .env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
