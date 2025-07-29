@@ -1,0 +1,13 @@
+2025-07-28 13:30:08,990 - __main__ - INFO - Starting server on 0.0.0.0:8000
+2025-07-28 13:30:08,991 - __main__ - INFO - Platform: win32
+2025-07-28 13:30:08,991 - __main__ - INFO - Event loop policy: WindowsSelectorEventLoopPolicy
+2025-07-28 13:30:09,125 - main - INFO - Starting DevSecOps AI Monitoring System...
+2025-07-28 13:30:09,199 - main - INFO - Database initialized
+2025-07-28 13:30:09,251 - main - INFO - Old data cleanup completed
+2025-07-28 13:30:10,337 - main - INFO - Pipeline monitor agent initialized
+2025-07-28 13:30:10,571 - main - INFO - Deployment monitor agent initialized
+2025-07-28 13:30:10,853 - main - INFO - Notification agent initialized
+2025-07-28 13:30:10,853 - main - INFO - Agents initialized: pipeline_monitor, deployment_monitor, notification
+2025-07-28 13:30:10,860 - main - INFO - Scheduled monitoring started
+2025-07-28 13:30:10,860 - main - INFO - Starting scheduled monitoring loop...
+2025-07-28 13:39:24,509 - main - WARNING - Monitoring cycle timed out
