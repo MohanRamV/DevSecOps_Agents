@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: tic-tac-toe
-          image: ghcr.io/mohanramv/devsecops_agents:sha-PLACEHOLDER
+          image: ghcr.io/mohanramv/devsecops_agents:sha-757fadbc8fe2007440bd316ddf2e7694cde62e95
 
           imagePullPolicy: Always
           ports:
