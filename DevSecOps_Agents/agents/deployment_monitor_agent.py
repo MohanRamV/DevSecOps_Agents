@@ -24,11 +24,24 @@ class DeploymentMonitorAgent(BaseAgent):
             if self.config.kubernetes.config_path:
                 k8s_config.load_kube_config(config_file=self.config.kubernetes.config_path)
             else:
-                k8s_config.load_incluster_config()
+                # Try in-cluster config first, fallback to default kubeconfig
+                try:
+                    k8s_config.load_incluster_config()
+                except k8s_config.ConfigException:
+                    # Not running in cluster, try default kubeconfig
+                    try:
+                        k8s_config.load_kube_config()
+                    except k8s_config.ConfigException:
+                        logger.warning("No Kubernetes configuration found. Deployment monitoring will be disabled.")
+                        self.k8s_apps_v1 = None
+                        self.k8s_core_v1 = None
+                        self.k8s_networking_v1 = None
+                        return
             
             self.k8s_apps_v1 = client.AppsV1Api()
             self.k8s_core_v1 = client.CoreV1Api()
             self.k8s_networking_v1 = client.NetworkingV1Api()
+            logger.info("Kubernetes client initialized successfully")
             
         except Exception as e:
             logger.error(f"Error initializing Kubernetes client: {e}")
@@ -41,7 +54,7 @@ class DeploymentMonitorAgent(BaseAgent):
         logger.info("Starting deployment monitoring...")
         
         if not self.k8s_apps_v1:
-            logger.error("Kubernetes client not initialized")
+            logger.warning("Kubernetes client not initialized. Deployment monitoring is disabled. Please configure Kubernetes access or set KUBECONFIG environment variable.")
             return []
         
         try:
@@ -62,7 +75,7 @@ class DeploymentMonitorAgent(BaseAgent):
                     
                     # Update deployment information
                     deployment_data = {
-                        "name": deployment.metadata.name,
+                        "deployment_name": deployment.metadata.name,
                         "namespace": deployment.metadata.namespace,
                         "image_tag": deployment.spec.template.spec.containers[0].image if deployment.spec.template.spec.containers else None,
                         "status": self._get_deployment_status(deployment),

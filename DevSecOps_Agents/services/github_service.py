@@ -64,79 +64,246 @@ class GitHubService:
         except GithubException as e:
             logger.error(f"Error fetching workflow runs: {e}")
             return []
-    
+    """
     def get_jobs_for_run(self, run):
         workflow_run = self.repo.get_workflow_run(run.id)
         return workflow_run.get_jobs()
-
+    """
 
     def get_workflow_run_details(self, run_id: int) -> Optional[Dict[str, Any]]:
         """Get detailed information about a specific workflow run"""
         try:
             run = self.repo.get_workflow_run(run_id)
             
-            # Get jobs for this run
-            jobs = []
-            for job in self.get_jobs_for_run(run):
-                job_data = {
-                    "id": job.id,
-                    "name": job.name,
-                    "status": job.status,
-                    "conclusion": job.conclusion,
-                    "started_at": job.started_at.isoformat() if job.started_at else None,
-                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-                    "duration": (job.completed_at - job.started_at).total_seconds() if job.started_at and job.completed_at else None,
-                    "steps": []
-                }
-                
-                # Get steps for this job
-                for step in job.get_steps():
-                    step_data = {
-                        "name": step.name,
-                        "status": step.status,
-                        "conclusion": step.conclusion,
-                        "started_at": step.started_at.isoformat() if step.started_at else None,
-                        "completed_at": step.completed_at.isoformat() if step.completed_at else None,
-                        "number": step.number
-                    }
-                    job_data["steps"].append(step_data)
-                
-                jobs.append(job_data)
+            # Get jobs for this run with robust error handling
+            jobs = self._get_workflow_jobs(run)
             
-            # Get artifacts
-            artifacts = []
-            for artifact in run.get_artifacts():
-                artifact_data = {
-                    "id": artifact.id,
-                    "name": artifact.name,
-                    "size_in_bytes": artifact.size_in_bytes,
-                    "created_at": artifact.created_at.isoformat() if artifact.created_at else None,
-                    "expires_at": artifact.expires_at.isoformat() if artifact.expires_at else None
-                }
-                artifacts.append(artifact_data)
+            # Get artifacts with error handling
+            artifacts = self._get_workflow_artifacts(run)
             
-            return {
-                "id": run.id,
-                "name": run.name,
-                "status": run.status,
-                "conclusion": run.conclusion,
-                "created_at": run.created_at.isoformat() if run.created_at else None,
-                "updated_at": run.updated_at.isoformat() if run.updated_at else None,
-                "started_at": run.started_at.isoformat() if run.started_at else None,
-                "completed_at": run.completed_at.isoformat() if run.completed_at else None,
-                "duration": (run.completed_at - run.started_at).total_seconds() if run.started_at and run.completed_at else None,
-                "branch": run.head_branch,
-                "commit_sha": run.head_sha,
-                "commit_message": run.head_commit.message if run.head_commit else None,
-                "actor": run.actor.login if run.actor else None,
-                "jobs": jobs,
-                "artifacts": artifacts,
-                "logs_url": run.logs_url,
-                "html_url": run.html_url
-            }
+            # Get run details with safe attribute access
+            run_details = self._extract_run_details(run, jobs, artifacts)
+            
+            return run_details
+            
         except GithubException as e:
             logger.error(f"Error fetching workflow run details: {e}")
             return None
+        except Exception as e:
+            logger.error(f"Unexpected error in get_workflow_run_details: {e}")
+            return None
+    
+    def _get_workflow_jobs(self, run) -> List[Dict[str, Any]]:
+        """Get jobs for a workflow run with robust error handling"""
+        jobs = []
+        try:
+            # The correct method is to use the 'jobs' attribute on the WorkflowRun object
+            if hasattr(run, 'jobs'):
+                try:
+                    # Check if jobs is a method or property
+                    jobs_attr = getattr(run, 'jobs')
+                    if callable(jobs_attr):
+                        # It's a method, call it
+                        job_list = jobs_attr()
+                        logger.debug(f"Using run.jobs() method for run {run.id}")
+                    else:
+                        # It's a property, use it directly
+                        job_list = jobs_attr
+                        logger.debug(f"Using run.jobs property for run {run.id}")
+                    
+                    # Process each job
+                    for job in job_list:
+                        try:
+                            job_data = self._extract_job_details(job)
+                            jobs.append(job_data)
+                        except Exception as e:
+                            logger.warning(f"Error processing job in run {run.id}: {e}")
+                            continue
+                    
+                    logger.info(f"Successfully retrieved {len(jobs)} jobs for run {run.id}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to get jobs for run {run.id}: {e}")
+            else:
+                logger.warning(f"WorkflowRun object does not have 'jobs' attribute for run {run.id}")
+                    
+        except Exception as e:
+            logger.error(f"Could not fetch jobs for run {run.id}: {e}")
+        
+        return jobs
+    
+    def _extract_job_details(self, job) -> Dict[str, Any]:
+        """Extract details from a job object with safe attribute access"""
+        try:
+            job_data = {
+                "id": getattr(job, 'id', None),
+                "name": getattr(job, 'name', None),
+                "status": getattr(job, 'status', None),
+                "conclusion": getattr(job, 'conclusion', None),
+                "started_at": None,
+                "completed_at": None,
+                "duration": None,
+                "steps": []
+            }
+            
+            # Handle datetime fields safely
+            started_at = getattr(job, 'started_at', None)
+            completed_at = getattr(job, 'completed_at', None)
+            
+            if started_at and hasattr(started_at, 'isoformat'):
+                job_data["started_at"] = started_at.isoformat()
+            
+            if completed_at and hasattr(completed_at, 'isoformat'):
+                job_data["completed_at"] = completed_at.isoformat()
+            
+            # Calculate duration if we have both times
+            if job_data["started_at"] and job_data["completed_at"]:
+                try:
+                    from datetime import datetime
+                    start_dt = datetime.fromisoformat(job_data["started_at"].replace('Z', '+00:00'))
+                    end_dt = datetime.fromisoformat(job_data["completed_at"].replace('Z', '+00:00'))
+                    job_data["duration"] = (end_dt - start_dt).total_seconds()
+                except Exception as e:
+                    logger.debug(f"Could not calculate job duration: {e}")
+            
+            # Get steps for this job
+            try:
+                if hasattr(job, 'get_steps'):
+                    steps = job.get_steps()
+                    for step in steps:
+                        step_data = {
+                            "name": getattr(step, 'name', None),
+                            "status": getattr(step, 'status', None),
+                            "conclusion": getattr(step, 'conclusion', None),
+                            "started_at": getattr(step, 'started_at', None),
+                            "completed_at": getattr(step, 'completed_at', None),
+                            "number": getattr(step, 'number', None)
+                        }
+                        
+                        # Convert datetime fields
+                        for time_field in ['started_at', 'completed_at']:
+                            if step_data[time_field] and hasattr(step_data[time_field], 'isoformat'):
+                                step_data[time_field] = step_data[time_field].isoformat()
+                        
+                        job_data["steps"].append(step_data)
+            except Exception as e:
+                logger.debug(f"Could not get steps for job: {e}")
+            
+            return job_data
+            
+        except Exception as e:
+            logger.warning(f"Error extracting job details: {e}")
+            return {"id": None, "name": "Unknown", "status": "unknown", "steps": []}
+    
+    def _get_workflow_artifacts(self, run) -> List[Dict[str, Any]]:
+        """Get artifacts for a workflow run with error handling"""
+        artifacts = []
+        try:
+            if hasattr(run, 'get_artifacts'):
+                for artifact in run.get_artifacts():
+                    try:
+                        artifact_data = {
+                            "id": getattr(artifact, 'id', None),
+                            "name": getattr(artifact, 'name', None),
+                            "size_in_bytes": getattr(artifact, 'size_in_bytes', None),
+                            "created_at": None,
+                            "expires_at": None
+                        }
+                        
+                        # Handle datetime fields
+                        created_at = getattr(artifact, 'created_at', None)
+                        expires_at = getattr(artifact, 'expires_at', None)
+                        
+                        if created_at and hasattr(created_at, 'isoformat'):
+                            artifact_data["created_at"] = created_at.isoformat()
+                        
+                        if expires_at and hasattr(expires_at, 'isoformat'):
+                            artifact_data["expires_at"] = expires_at.isoformat()
+                        
+                        artifacts.append(artifact_data)
+                    except Exception as e:
+                        logger.debug(f"Error processing artifact: {e}")
+                        continue
+        except Exception as e:
+            logger.warning(f"Could not fetch artifacts for run {run.id}: {e}")
+        
+        return artifacts
+    
+    def _extract_run_details(self, run, jobs: List[Dict[str, Any]], artifacts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Extract run details with safe attribute access"""
+        try:
+            # Try different attribute names for start/end times
+            started_at = None
+            completed_at = None
+            
+            # Try common attribute names for start time
+            for attr_name in ['run_started_at', 'started_at', 'created_at']:
+                if hasattr(run, attr_name):
+                    started_at = getattr(run, attr_name)
+                    break
+            
+            # Try common attribute names for completion time
+            for attr_name in ['run_completed_at', 'completed_at', 'updated_at']:
+                if hasattr(run, attr_name):
+                    completed_at = getattr(run, attr_name)
+                    break
+            
+            run_details = {
+                "id": getattr(run, 'id', None),
+                "name": getattr(run, 'name', None),
+                "status": getattr(run, 'status', None),
+                "conclusion": getattr(run, 'conclusion', None),
+                "created_at": getattr(run, 'created_at', None),
+                "updated_at": getattr(run, 'updated_at', None),
+                "started_at": started_at,
+                "completed_at": completed_at,
+                "branch": getattr(run, 'head_branch', None),
+                "commit_sha": getattr(run, 'head_sha', None),
+                "commit_message": None,
+                "actor": None,
+                "jobs": jobs,
+                "artifacts": artifacts,
+                "logs_url": getattr(run, 'logs_url', None),
+                "html_url": getattr(run, 'html_url', None)
+            }
+            
+            # Handle commit message safely
+            if hasattr(run, 'head_commit') and run.head_commit:
+                run_details["commit_message"] = getattr(run.head_commit, 'message', None)
+            
+            # Handle actor safely
+            if hasattr(run, 'actor') and run.actor:
+                run_details["actor"] = getattr(run.actor, 'login', None)
+            
+            # Convert datetime objects to ISO format
+            for key in ['created_at', 'updated_at', 'started_at', 'completed_at']:
+                if run_details[key] and hasattr(run_details[key], 'isoformat'):
+                    run_details[key] = run_details[key].isoformat()
+            
+            # Calculate duration if we have both start and end times
+            if run_details["started_at"] and run_details["completed_at"]:
+                try:
+                    from datetime import datetime
+                    start_dt = datetime.fromisoformat(run_details["started_at"].replace('Z', '+00:00'))
+                    end_dt = datetime.fromisoformat(run_details["completed_at"].replace('Z', '+00:00'))
+                    run_details["duration"] = (end_dt - start_dt).total_seconds()
+                except Exception as e:
+                    logger.debug(f"Could not calculate duration: {e}")
+                    run_details["duration"] = None
+            else:
+                run_details["duration"] = None
+            
+            return run_details
+            
+        except Exception as e:
+            logger.error(f"Error extracting run details: {e}")
+            return {
+                "id": getattr(run, 'id', None),
+                "name": getattr(run, 'name', None),
+                "status": "unknown",
+                "jobs": jobs,
+                "artifacts": artifacts
+            }
     
     def get_repository_stats(self) -> Optional[Dict[str, Any]]:
         """Get repository statistics"""
